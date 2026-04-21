@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 更新日志
 
 所有项目的更改都将记录在此文件中。
@@ -82,3 +83,10 @@
 - [GitHub Releases](https://github.com/MoKangMedical/global-clinical-trials-insight-and-commentary-platform-overview/releases)
 - [GitHub Issues](https://github.com/MoKangMedical/global-clinical-trials-insight-and-commentary-platform-overview/issues)
 - [GitHub Pull Requests](https://github.com/MoKangMedical/global-clinical-trials-insight-and-commentary-platform-overview/pulls)
+=======
+# CHANGELOG
+
+## 2026-04-22 — Hermes改进
+- 📐 理论标准化（Harness+红杉+宪法）
+- 🔒 安全规则补全（.gitignore）
+>>>>>>> 7208bcd (Hermes: global-clinical-trials-insight-and-commentary-platform-overview - CHANGELOG/README补全)
