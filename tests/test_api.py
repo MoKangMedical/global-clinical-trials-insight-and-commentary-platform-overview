@@ -1,88 +1,126 @@
+#!/usr/bin/env python3
+"""
+后端API测试
+"""
+
 import pytest
-from fastapi.testclient import TestClient
+import asyncio
+from httpx import AsyncClient
+from src.main import app
 
-def test_health_check(client: TestClient):
+@pytest.fixture
+def anyio_backend():
+    return 'asyncio'
+
+@pytest.mark.anyio
+async def test_health_check():
     """测试健康检查接口"""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "version" in data
-
-def test_root_endpoint(client: TestClient):
-    """测试根路径接口"""
-    response = client.get("/")
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-
-def test_api_status(client: TestClient):
-    """测试API状态接口"""
-    response = client.get("/api/v1/status")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "operational"
-
-def test_get_data_list(client: TestClient):
-    """测试获取数据列表接口"""
-    response = client.get("/api/v1/data")
-    assert response.status_code == 200
-    data = response.json()
-    assert "data" in data
-    assert "pagination" in data
-
-def test_get_specific_data(client: TestClient):
-    """测试获取特定数据接口"""
-    # 先获取数据列表
-    response = client.get("/api/v1/data")
-    data = response.json()
-    if data["data"]:
-        # 获取第一个数据项的ID
-        item_id = data["data"][0]["id"]
-        response = client.get(f"/api/v1/data/{{item_id}}")
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get("/health")
         assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "service" in data
 
-def test_analyze_data(client: TestClient):
-    """测试数据分析接口"""
-    analysis_request = {
-        "dataset": "test_dataset",
-        "variables": ["var1", "var2"],
-        "analysis_type": "statistical"
-    }
-    response = client.post("/api/v1/analyze", json=analysis_request)
-    assert response.status_code == 200
-    data = response.json()
-    assert "analysis_id" in data
-    assert "statistics" in data
+@pytest.mark.anyio
+async def test_get_trials():
+    """获取试验列表"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get("/api/trials")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
 
-def test_user_login_invalid(client: TestClient):
-    """测试用户登录失败情况"""
-    login_data = {
-        "username": "invalid_user",
-        "password": "wrong_password"
-    }
-    response = client.post("/api/v1/auth/login", json=login_data)
-    assert response.status_code == 401
+@pytest.mark.anyio
+async def test_import_sample_data():
+    """导入示例数据"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post("/api/sample-data")
+        assert response.status_code == 200
+        data = response.json()
+        assert "imported" in data
+        assert data["imported"] > 0
 
-def test_user_register(client: TestClient):
-    """测试用户注册接口"""
-    user_data = {
-        "username": "test_user",
-        "email": "test@example.com",
-        "password": "test_password",
-        "full_name": "测试用户"
-    }
-    response = client.post("/api/v1/auth/register", json=user_data)
-    # 注册可能成功或失败（取决于是否已存在）
-    assert response.status_code in [200, 201, 400]
+@pytest.mark.anyio
+async def test_get_stats():
+    """获取统计信息"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get("/api/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_trials" in data
+        assert "by_journal" in data
 
-def test_protected_endpoint_without_token(client: TestClient):
-    """测试需要认证的接口（无令牌）"""
-    response = client.get("/api/v1/users/me")
-    assert response.status_code == 401
+@pytest.mark.anyio
+async def test_analyze_trial():
+    """分析试验"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        # 先导入数据
+        await client.post("/api/sample-data")
+        
+        # 分析试验
+        response = await client.post(
+            "/api/analyze",
+            json={"pmid": "38123456"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "trial_info" in data
+        assert "methodological_assessment" in data
 
-def test_protected_endpoint_with_invalid_token(client: TestClient):
-    """测试需要认证的接口（无效令牌）"""
-    headers = {"Authorization": "Bearer invalid_token"}
-    response = client.get("/api/v1/users/me", headers=headers)
-    assert response.status_code == 401
+@pytest.mark.anyio
+async def test_generate_commentary():
+    """生成评论"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        # 先导入数据
+        await client.post("/api/sample-data")
+        
+        # 生成评论
+        response = await client.post(
+            "/api/commentary/generate",
+            json={"trial_id": 1, "style": "academic"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "commentary" in data
+        assert len(data["commentary"]) > 0
+
+@pytest.mark.anyio
+async def test_unpaywall():
+    """测试Unpaywall API"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(
+            "/api/unpaywall/test",
+            params={"doi": "10.1056/NEJMoa2500101"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "doi" in data
+        assert "is_oa" in data
+
+@pytest.mark.anyio
+async def test_subscriptions():
+    """测试订阅功能"""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        # 创建订阅
+        response = await client.post(
+            "/api/subscriptions",
+            json={
+                "user_id": 1,
+                "indication": "Diabetes",
+                "phase": "Phase 3",
+                "notification_method": "email"
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+        
+        # 获取订阅列表
+        response = await client.get("/api/subscriptions", params={"user_id": 1})
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
